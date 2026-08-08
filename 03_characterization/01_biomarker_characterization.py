@@ -14,7 +14,7 @@ in   processed/analysis_table (n14 labels), clinical_data/observation.csv
 out  logs/characterization_fitforpurpose_n1306_n14.{md,csv}, pairwise CSV
 """
 import os
-import sys
+import json
 import numpy as np
 import pandas as pd
 from scipy.stats import kruskal, mannwhitneyu
@@ -25,21 +25,11 @@ assert BASE, "set AIREADI_DATA_ROOT to the data root"
 FAST_MIN = 12          # hours since last ate, self-report
 PAT = {0: 'Spiker', 1: 'Stable', 2: 'Hypo-Prone'}
 
-BRANCH = (sys.argv[1] if len(sys.argv) > 1 else 'canonical').lower()
-assert BRANCH in ('canonical', 'pruned', 'n14'), 'branch must be canonical|pruned|n14'
-if BRANCH == 'n14':
-    TABLE, LABCOL = (f'{BASE}/canonical_n14_rerun/processed/analysis_table_n1306_n14.csv',
-                             'hypo_k3_n14')
-    SUFFIX = '_n14'
-elif BRANCH == 'pruned':
-    TABLE, LABCOL = (f'{BASE}/pruned_n10_rerun/processed/analysis_table_n1306_pruned.csv',
-                             'hypo_k3_pruned')
-    SUFFIX = '_pruned'
-else:
-    TABLE, LABCOL = (f'{BASE}/processed/analysis_table_n1306_clean.csv',
-                             'hypo_k3')
-    SUFFIX = ''
-print(f'BRANCH={BRANCH}  labels={LABCOL}')
+TABLE  = f'{BASE}/canonical_n14_rerun/processed/analysis_table_n1306_n14.csv'
+LABCOL = 'hypo_k3_n14'
+META   = f'{BASE}/canonical_n14_rerun/models/meta.json'
+SUFFIX = '_n14'
+print(f'labels={LABCOL}')
 
 # marker -> (label, needs_fasting)
 MARKERS = [
@@ -76,8 +66,21 @@ df['insulin'] = df['insulin'] * NGML_TO_UU
 df['homa_ir_corrected'] = df['homa_ir_corrected'] * X6_TO_TRUE
 assert df.person_id.is_unique, 'duplicate person_id'
 df['hypo_k3'] = df[LABCOL]            # unified internal name
-vc = df['hypo_k3'].value_counts().to_dict()
-assert (vc[0], vc[1], vc[2]) == EXPECT, f'unexpected label counts: {vc}'
+
+# Size vector keyed by pattern name -- n_Spiker, n_Stable, n_Hypo-Prone -- not by cluster code.
+# A positional tuple depends on the code-to-pattern mapping, so a re-fit that permutes the codes
+# would compare the wrong cells without saying so.
+N_OBS = {PAT[g]: int((df['hypo_k3'] == g).sum()) for g in sorted(PAT)}
+assert all(n > 0 for n in N_OBS.values()), f'a pattern is empty: {N_OBS}'
+
+# The expected sizes are read from the fitted model's metadata, not written out here. Other
+# label sets exist for the same participants and every one of them has three non-empty clusters
+# over the same cohort, so neither a count of labels nor a row total can tell them apart -- only
+# the sizes can. Keeping those numbers in the artifact rather than in this file leaves the source
+# free of cohort values while still catching a label column from the wrong solution.
+N_EXP = json.load(open(META))['sizes']
+assert N_OBS == N_EXP, (f'label column does not match the fitted model -- '
+                        f'observed {N_OBS}, model {N_EXP}; check LABCOL={LABCOL}')
 
 # fasting duration, self-report (same source Fig 3 uses)
 obs = pd.read_csv(f'{BASE}/clinical_data/observation.csv',
@@ -152,7 +155,8 @@ print('  ' + ', '.join(res.loc[res.fdr_sig != 'ns', 'label']))
 # ---- markdown companion
 with open(f'{BASE}/logs/characterization_fitforpurpose_n1306{SUFFIX}.md', 'w') as f:
     f.write('# Biomarker characterization, 15 analytes\n\n')
-    f.write(f'Branch: {BRANCH} — labels {LABCOL} (Spiker {EXPECT[0]} / Stable {EXPECT[1]} / HP {EXPECT[2]}). '
+    f.write(f'Labels {LABCOL} '
+            f'({" / ".join(f"{k} {v:,}" for k, v in N_OBS.items())}). '
             f'Fasting-dependent markers evaluated on the >={FAST_MIN} h self-report-fasted subset '
             f'(n={n_fast}, {100*n_fast/len(df):.0f}% of cohort); fasting-independent markers on the '
             f'full cohort. KW across 3 phenotypes, BH-FDR within the 15-marker family, '
@@ -165,4 +169,4 @@ with open(f'{BASE}/logs/characterization_fitforpurpose_n1306{SUFFIX}.md', 'w') a
                  'Stable_vs_HP_bonf']].to_markdown(index=False))
     f.write(f'\n\n**{n_sig}/15 significant after BH-FDR.**\n')
 
-print('\nWROTE logs/characterization_fitforpurpose_n1306{SUFFIX}.{csv,md} + _pairwise.csv')
+print(f'\nWROTE logs/characterization_fitforpurpose_n1306{SUFFIX}.{{csv,md}} + _pairwise.csv')
