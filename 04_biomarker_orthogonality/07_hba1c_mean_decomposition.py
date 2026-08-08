@@ -28,10 +28,7 @@ BASE = os.environ.get("AIREADI_DATA_ROOT", "")
 
 assert BASE, "set AIREADI_DATA_ROOT to the data root"
 PRUNED = os.path.join(BASE, "canonical_n14_rerun/processed/analysis_table_n1306_n14.csv")
-# table) was deleted, not just unused. Panel b was its last reader and is now on PRUNED. Leaving
-# the constant defined would leave a live path out of the branch sitting one word away from any
 OUTDIR = os.path.join(BASE, "canonical_n14_rerun/plots"); os.makedirs(OUTDIR, exist_ok=True)
-DATE   = "2026-08-03"
 
 # ---- locked pattern colors/names (identical across all npj figures) ----
 NAME = {0: "Spiker", 1: "Stable", 2: "Hypo-Prone"}

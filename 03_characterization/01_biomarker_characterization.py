@@ -52,14 +52,15 @@ MARKERS = [
 
 df = pd.read_csv(TABLE)
 
-# UNIT FIX 2026-08-06. The stored `insulin` / `fasting_insulin` column is **ng/mL**, so stored -> uU/mL is
-# x28.70 (MW 5808; 1 uU/mL = 6 pmol/L), and the stored `homa_ir_corrected` column -- built with a x6
-# constant -- is 4.783x below true HOMA-IR. Evidence: insulin and C-peptide share OMOP unit_concept_id 8725
-# and C-peptide's own reference range proves that label means ng/mL; the C-peptide:insulin molar ratio is
-# physiological (8.3, IQR 6.0-11.0) only under ng/mL; and only under ng/mL do >=12 h fasted, lean,
-# normoglycemic participants land at 6.0 uU/mL / HOMA-IR 1.31.
-# The rescale is a positive scalar, so every rank-based result here -- Spearman, AUC, balanced accuracy,
-# Kruskal-Wallis / Mann-Whitney p, FDR verdict -- is UNCHANGED. Only reported absolutes move.
+# Unit convention for the stored insulin columns. `insulin` and `fasting_insulin` are stored in
+# ng/mL, so conversion to uU/mL is x28.70 (insulin MW 5808; 1 uU/mL = 6 pmol/L), and
+# `homa_ir_corrected` -- computed with a x6 constant -- sits 4.783x below true HOMA-IR. The unit
+# is established in Methods on three independent lines: the OMOP unit label, shared with
+# C-peptide, whose own reference range fixes what that label means; the C-peptide-to-insulin
+# molar ratio, which is physiological only under ng/mL; and the absolute insulin and HOMA-IR of
+# fasted, lean, normoglycemic participants.
+# The rescale is a positive scalar, so every rank-based result here -- Spearman, AUC, balanced
+# accuracy, Kruskal-Wallis / Mann-Whitney p, FDR verdict -- is unchanged; only absolutes move.
 NGML_TO_UU = (1e6 / 5808.0) / 6.0     # 28.70 uU/mL per ng/mL
 X6_TO_TRUE = NGML_TO_UU / 6.0         # 4.783 -> true HOMA-IR
 df['insulin'] = df['insulin'] * NGML_TO_UU

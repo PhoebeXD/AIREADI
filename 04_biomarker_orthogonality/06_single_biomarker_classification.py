@@ -52,11 +52,11 @@ BIO_C    = '#7570B3'    # biomarker bars (purple, as Fig 1 person-level)
 CGM_C    = '#1B9E77'    # CGM positive control (teal accent)
 GBT_C    = '#B3A2D9'    # lighter purple for the 2nd model
 
-# pruned-10 set. It was still the 10-feature list, so the control was built from features the
-# labels were not derived from — and the panel label read "CGM 10-feat" on a 14-feature branch.
-CGM10 = ['mean_glucose','glucose_sd','glucose_cv','mage','pct_above_140','pct_above_180',
+# The CGM positive control must be built from the features the labels were derived from, so this
+# is the clustering feature set and nothing else.
+CGM14 = ['mean_glucose','glucose_sd','glucose_cv','mage','pct_above_140','pct_above_180',
          'pct_below_70','pct_below_54','n_lows_70','n_spikes_140',
-         'avg_rise_rate','avg_fall_rate','day_night_diff','n_reactive_events']   # = the 14 n14 features
+         'avg_rise_rate','avg_fall_rate','day_night_diff','n_reactive_events']
 BIO5  = ['hba1c','fasting_glucose','homa_ir_corrected','fasting_insulin','c_peptide']
 
 # ---------------------------------------------------------------- load + verify
@@ -79,14 +79,15 @@ df = df.merge(_paate, on='person_id', how='left')
 assert df.person_id.is_unique, 'fasting merge changed row count'
 
 # ---------------------------------------------------------------- IR index construction
-# UNIT FIX 2026-08-06. The stored `insulin` / `fasting_insulin` column is **ng/mL**, so stored -> uU/mL is
-# x28.70 (MW 5808; 1 uU/mL = 6 pmol/L), and the stored `homa_ir_corrected` column -- built with a x6
-# constant -- is 4.783x below true HOMA-IR. Evidence: insulin and C-peptide share OMOP unit_concept_id 8725
-# and C-peptide's own reference range proves that label means ng/mL; the C-peptide:insulin molar ratio is
-# physiological (8.3, IQR 6.0-11.0) only under ng/mL; and only under ng/mL do >=12 h fasted, lean,
-# normoglycemic participants land at 6.0 uU/mL / HOMA-IR 1.31.
-# The rescale is a positive scalar, so every rank-based result here -- Spearman, AUC, balanced accuracy,
-# Kruskal-Wallis / Mann-Whitney p, FDR verdict -- is UNCHANGED. Only reported absolutes move.
+# Unit convention for the stored insulin columns. `insulin` and `fasting_insulin` are stored in
+# ng/mL, so conversion to uU/mL is x28.70 (insulin MW 5808; 1 uU/mL = 6 pmol/L), and
+# `homa_ir_corrected` -- computed with a x6 constant -- sits 4.783x below true HOMA-IR. The unit
+# is established in Methods on three independent lines: the OMOP unit label, shared with
+# C-peptide, whose own reference range fixes what that label means; the C-peptide-to-insulin
+# molar ratio, which is physiological only under ng/mL; and the absolute insulin and HOMA-IR of
+# fasted, lean, normoglycemic participants.
+# The rescale is a positive scalar, so every rank-based result here -- Spearman, AUC, balanced
+# accuracy, Kruskal-Wallis / Mann-Whitney p, FDR verdict -- is unchanged; only absolutes move.
 # FPG/TG/HDL are mg/dL.
 NGML_TO_UU = (1e6 / 5808.0) / 6.0     # 28.70 uU/mL per ng/mL
 X6_TO_TRUE = NGML_TO_UU / 6.0         # 4.783 -> true HOMA-IR
@@ -158,10 +159,10 @@ def evaluate(cols, label, classes, fasted=True):
 # ---------------------------------------------------------------- PC1 continuum axis (compute once)
 # PC1 (the continuum axis, loads on mean_glucose) is a SECONDARY reference column for panel b(i);
 # the plotted association axis is n_spikes_140 (spike-burden). Computed once on the full cohort.
-Xc = df[CGM10].fillna(df[CGM10].median())
+Xc = df[CGM14].fillna(df[CGM14].median())
 Xs = StandardScaler().fit_transform(Xc.values)
 pca = PCA(2, random_state=42).fit(Xs); PC = pca.transform(Xs); ld = pca.components_
-if ld[0, CGM10.index('mean_glucose')] < 0: PC[:, 0] *= -1
+if ld[0, CGM14.index('mean_glucose')] < 0: PC[:, 0] *= -1
 df['PC1'] = PC[:, 0]
 
 HOMA_THRESH = 2.0
@@ -185,7 +186,7 @@ def build(K):
     rowsA = [evaluate([col], label, CLASSES, fasted=FASTED_MARKER.get(label, True))
              for label, col in INDIV]
     rowsA.append(evaluate(PANEL5, '5 IR-index panel', CLASSES, fasted=True))
-    rowsA.append(evaluate(CGM10, f'CGM {len(CGM10)}-feat (control)', CLASSES, fasted=False))
+    rowsA.append(evaluate(CGM14, f'CGM {len(CGM14)}-feat (control)', CLASSES, fasted=False))
     row6 = evaluate(['IDX_hba1c'] + PANEL5, '6-biomarker panel (ref)', CLASSES)
     print(f'=== PANEL A ({ktag}): balanced accuracy (LR / GBT), chance {BASE_LINE:.3f} ===')
     for r in rowsA:
