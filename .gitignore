@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# No data is published with this repository.
+*.csv
+*.tsv
+*.parquet
+*.npz
+*.npy
+*.pkl
+*.json
+*.png
+*.pdf
+outputs/
+logs/
+plots/
