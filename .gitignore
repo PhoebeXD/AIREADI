@@ -1,0 +1,35 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# No data is published with this repository.
+*.csv
+*.tsv
+*.parquet
+*.npz
+*.npy
+*.pkl
+*.json
+*.png
+*.pdf
+outputs/
+logs/
+plots/
+
+# The one exception is the synthetic demo dataset. It is produced by
+# demo/make_demo_data.py, contains no participant information of any kind, and is
+# published so the pipeline can be run without access to AI-READI.
+!demo/demo_data/
+!demo/demo_data/**
+
+# ...but not what running the pipeline writes back into the demo root.
+demo/demo_data/logs/
+demo/demo_data/canonical_n14_rerun/
+demo/demo_data/local_time_refit/
+demo/demo_data/processed/analysis_table.csv
+demo/demo_data/output/phase3_qc_eligible_participants.csv
+demo/demo_data/plots/
+demo/demo_data/external_validation/results/kselection_cgmacros.csv
+demo/demo_data/external_validation/cgmacros/
+demo/demo_data/processed/nocturnal_features.csv
+demo/demo_data/processed/reactive_event_features.csv
